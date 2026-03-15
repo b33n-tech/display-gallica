@@ -1,5 +1,6 @@
 import streamlit as st
 import re
+import requests
 
 st.title("Gallica → Image viewer multi-URL")
 
@@ -22,7 +23,7 @@ def gallica_to_iiif(url):
     return iiif
 
 
-# ---------- session state ----------
+# ---------- session ----------
 
 if "urls" not in st.session_state:
     st.session_state.urls = []
@@ -30,13 +31,7 @@ if "urls" not in st.session_state:
 
 # ---------- input ----------
 
-url = st.text_input(
-    "Ajouter une URL Gallica",
-    ""
-)
-
-
-# ---------- bouton ----------
+url = st.text_input("Ajouter une URL Gallica")
 
 if st.button("Afficher l'image"):
 
@@ -48,13 +43,34 @@ if st.button("Afficher l'image"):
 
 st.subheader("Images")
 
-for u in st.session_state.urls:
+for i, u in enumerate(st.session_state.urls):
 
     iiif = gallica_to_iiif(u)
 
     if iiif:
+
         st.image(iiif)
+
         st.caption(iiif)
+
+        # télécharger image
+
+        try:
+
+            response = requests.get(iiif)
+
+            if response.status_code == 200:
+
+                st.download_button(
+                    label="Télécharger l'image",
+                    data=response.content,
+                    file_name=f"gallica_{i}.jpg",
+                    mime="image/jpeg",
+                    key=f"dl{i}"
+                )
+
+        except:
+            st.error("Erreur téléchargement")
 
     else:
         st.error(f"URL invalide : {u}")
