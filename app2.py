@@ -1,64 +1,39 @@
 import re
 import requests
+from typing import Optional
 
+ARK_PATTERN = re.compile(r"(ark:/12148/[a-z0-9]+)")
 
-def extract_ark(url):
+def extract_ark(url: str) -> Optional[str]:
+    m = ARK_PATTERN.search(url)
+    return m.group(1) if m else None
 
-    m = re.search(r"(ark:/12148/[a-z0-9]+)", url)
-
-    if m:
-        return m.group(1)
-
-    return None
-
-
-def manifest_url(ark):
-
+def manifest_url(ark: str) -> str:
     return f"https://gallica.bnf.fr/{ark}/manifest.json"
 
-
-def get_all_pages_urls(url):
-
+def get_all_pages_urls(url: str) -> Optional[list[str]]:
     ark = extract_ark(url)
-
     if not ark:
         return None
 
-    m_url = manifest_url(ark)
-
-    r = requests.get(m_url)
-
-    if r.status_code != 200:
+    try:
+        r = requests.get(manifest_url(ark), timeout=10)
+        r.raise_for_status()
+        data = r.json()
+    except requests.RequestException as e:
+        print(f"Erreur lors de la récupération du manifeste : {e}")
         return None
 
-    data = r.json()
-
-    pages = []
-
     # IIIF v2
-
     if "sequences" in data:
-
-        canvases = data["sequences"][0]["canvases"]
-
-        for i, c in enumerate(canvases):
-
-            page = i + 1
-
-            pages.append(
-                f"https://gallica.bnf.fr/{ark}/f{page}.image"
-            )
-
+        canvases = data["sequences"][0].get("canvases", [])
     # IIIF v3
-
     elif "items" in data:
+        canvases = data["items"]
+    else:
+        return []
 
-        for i, c in enumerate(data["items"]):
-
-            page = i + 1
-
-            pages.append(
-                f"https://gallica.bnf.fr/{ark}/f{page}.image"
-            )
-
-    return pages
+    return [
+        f"https://gallica.bnf.fr/{ark}/f{i + 1}.image"
+        for i in range(len(canvases))
+    ]
