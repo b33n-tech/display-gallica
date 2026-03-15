@@ -1,23 +1,14 @@
 import streamlit as st
 import re
 
-st.title("Gallica → Image viewer")
+st.title("Gallica → Image viewer multi-URL")
 
-url = st.text_input(
-    "URL Gallica",
-    "https://gallica.bnf.fr/ark:/12148/bpt6k15568271/f65.image.r=toutankhamon?rk=321890;0"
-)
 
+# ---------- fonction conversion ----------
 
 def gallica_to_iiif(url):
-    """
-    Convertit URL gallica vers URL image IIIF
-    """
 
-    # ark
     ark_match = re.search(r"(ark:/12148/[a-z0-9]+)", url)
-    
-    # page fXX
     page_match = re.search(r"/f(\d+)", url)
 
     if not ark_match or not page_match:
@@ -31,12 +22,39 @@ def gallica_to_iiif(url):
     return iiif
 
 
-if url:
+# ---------- session state ----------
 
-    iiif_url = gallica_to_iiif(url)
+if "urls" not in st.session_state:
+    st.session_state.urls = []
 
-    if iiif_url:
-        st.write("Image URL :", iiif_url)
-        st.image(iiif_url, use_column_width=True)
+
+# ---------- input ----------
+
+url = st.text_input(
+    "Ajouter une URL Gallica",
+    ""
+)
+
+
+# ---------- bouton ----------
+
+if st.button("Afficher l'image"):
+
+    if url:
+        st.session_state.urls.append(url)
+
+
+# ---------- affichage ----------
+
+st.subheader("Images")
+
+for u in st.session_state.urls:
+
+    iiif = gallica_to_iiif(u)
+
+    if iiif:
+        st.image(iiif)
+        st.caption(iiif)
+
     else:
-        st.error("URL non reconnue")
+        st.error(f"URL invalide : {u}")
