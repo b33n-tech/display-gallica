@@ -3,8 +3,17 @@ import requests
 import streamlit as st
 from typing import Optional
 
+# --- Constantes ---
 ARK_PATTERN = re.compile(r"(ark:/12148/[a-z0-9]+)")
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
 
+# --- Fonctions ---
 def extract_ark(url: str) -> Optional[str]:
     m = ARK_PATTERN.search(url)
     return m.group(1) if m else None
@@ -18,11 +27,11 @@ def get_all_pages_urls(url: str) -> Optional[list[str]]:
         return None
 
     try:
-        r = requests.get(manifest_url(ark), timeout=10)
+        r = requests.get(manifest_url(ark), headers=HEADERS, timeout=10)
         r.raise_for_status()
         data = r.json()
     except requests.RequestException as e:
-        st.error(f"Erreur lors de la récupération du manifeste : {e}")
+        st.error(f"Erreur réseau ou HTTP : {e}")
         return None
 
     if "sequences" in data:
@@ -30,6 +39,7 @@ def get_all_pages_urls(url: str) -> Optional[list[str]]:
     elif "items" in data:
         canvases = data["items"]
     else:
+        st.warning("Format de manifeste IIIF non reconnu.")
         return []
 
     return [
@@ -39,11 +49,12 @@ def get_all_pages_urls(url: str) -> Optional[list[str]]:
 
 # --- Interface Streamlit ---
 st.title("📖 Gallica – Extraction des pages")
+st.caption("Colle l'URL d'un document Gallica pour obtenir les liens de toutes ses pages.")
 
-url = st.text_input("Colle l'URL d'un document Gallica :")
+url = st.text_input("URL Gallica", placeholder="https://gallica.bnf.fr/ark:/12148/...")
 
 if url:
-    with st.spinner("Récupération du manifeste..."):
+    with st.spinner("Récupération du manifeste IIIF..."):
         pages = get_all_pages_urls(url)
 
     if pages is None:
@@ -51,16 +62,15 @@ if url:
     elif len(pages) == 0:
         st.warning("Manifeste trouvé mais aucune page détectée.")
     else:
-        st.success(f"{len(pages)} page(s) trouvée(s).")
-        st.write("**Liste des URLs :**")
-        for p in pages:
-            st.write(p)
+        st.success(f"✅ {len(pages)} page(s) trouvée(s).")
 
-        # Bouton pour tout copier
-        all_urls = "\n".join(pages)
+        with st.expander("Voir toutes les URLs", expanded=True):
+            for i, p in enumerate(pages, 1):
+                st.write(f"**Page {i}** — {p}")
+
         st.download_button(
             label="⬇️ Télécharger la liste (.txt)",
-            data=all_urls,
+            data="\n".join(pages),
             file_name="pages_gallica.txt",
             mime="text/plain"
         )
