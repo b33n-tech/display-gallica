@@ -18,6 +18,8 @@ def gallica_to_iiif(url):
 # ---------- session ----------
 if "urls" not in st.session_state:
     st.session_state.urls = []
+if "image_cache" not in st.session_state:
+    st.session_state.image_cache = {}
 
 # ---------- input ----------
 url = st.text_input("Ajouter une URL Gallica")
@@ -30,10 +32,22 @@ st.subheader("Images")
 for i, u in enumerate(st.session_state.urls):
     iiif = gallica_to_iiif(u)
     if iiif:
+        # Téléchargement mis en cache pour ne pas refaire la requête à chaque re-render
+        if iiif not in st.session_state.image_cache:
+            try:
+                response = requests.get(iiif)
+                if response.status_code == 200:
+                    st.session_state.image_cache[iiif] = response.content
+                else:
+                    st.session_state.image_cache[iiif] = None
+            except:
+                st.session_state.image_cache[iiif] = None
+
+        image_data = st.session_state.image_cache.get(iiif)
+
         st.image(iiif)
         st.caption(iiif)
 
-        # --- textbox pour renommer + bouton télécharger ---
         col1, col2 = st.columns([3, 1])
         with col1:
             custom_name = st.text_input(
@@ -43,22 +57,20 @@ for i, u in enumerate(st.session_state.urls):
                 placeholder="Entrez un nom de fichier..."
             )
         with col2:
-            try:
-                response = requests.get(iiif)
-                if response.status_code == 200:
-                    # S'assurer que le nom se termine par .jpg
-                    file_name = custom_name.strip() if custom_name.strip() else f"gallica_{i}"
-                    if not file_name.lower().endswith(".jpg"):
-                        file_name += ".jpg"
+            file_name = custom_name.strip() if custom_name.strip() else f"gallica_{i}"
+            if not file_name.lower().endswith(".png"):
+                file_name += ".png"
 
-                    st.download_button(
-                        label="⬇️ Télécharger",
-                        data=response.content,
-                        file_name=file_name,
-                        mime="image/jpeg",
-                        key=f"dl_{i}"
-                    )
-            except:
-                st.error("Erreur téléchargement")
+            st.download_button(
+                label="⬇️ Télécharger",
+                data=image_data if image_data else b"",
+                file_name=file_name,
+                mime="image/png",
+                key=f"dl_{i}",
+                disabled=image_data is None
+            )
+
+        if image_data is None:
+            st.error("Erreur : image non disponible au téléchargement")
     else:
         st.error(f"URL invalide : {u}")
